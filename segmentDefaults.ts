@@ -5,7 +5,7 @@ export const dynamic = "force-static"
 export const dynamicParams = true
 
 // revalidate	false | 0 | number	false
-export const revalidate = false
+export const revalidate = Infinity
 
 // fetchCache	'auto' | 'default-cache' | 'only-cache' | 'force-cache' | 'force-no-store' | 'default-no-store' | 'only-no-store'	'auto'
 export const fetchCache = "only-cache"

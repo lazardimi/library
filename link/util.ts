@@ -58,11 +58,9 @@ export const instantScrollToAnchor = async (anchor: string) => {
 
 			const scrollOffset = getScrollOffset(anchor)
 			ScrollTrigger.refresh()
-			window.lenis?.scrollTo(anchor, {
-				offset: scrollOffset,
-				immediate: true,
-				force: true,
-			})
+			const top =
+				anchorEl.getBoundingClientRect().top + window.scrollY + scrollOffset
+			window.scrollTo({ top, behavior: "instant" })
 			const newPosition = window.scrollY
 
 			// if we moved less than 10 pixels, count it as a good attempt

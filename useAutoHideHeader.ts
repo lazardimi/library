@@ -81,7 +81,7 @@ export default function useAutoHideHeader(
 			const yTo = gsap.quickTo(wrapper.current, "y", props)
 
 			const onUpdate = () => {
-				const scroll = window.lenis?.scroll ?? 0
+				const scroll = window.scrollY
 				const delta = scroll - lastScroll
 				lastScroll = scroll
 				const height = wrapper.current?.offsetHeight ?? 0

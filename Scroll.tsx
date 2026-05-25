@@ -1,12 +1,7 @@
 "use client"
 
-import { gsap, ScrollTrigger } from "gsap/all"
-import Lenis, { type LenisOptions } from "lenis"
 import { useEffect, useState } from "react"
-import { useDeepCompareLayoutEffect } from "use-deep-compare"
-import { isBrowser } from "./deviceDetection"
 import TypedEventEmitter from "./TypedEventEmitter"
-import "lenis/dist/lenis.css"
 
 const locks: symbol[] = []
 const locksChange = new TypedEventEmitter<{ change: [] }>()
@@ -71,143 +66,60 @@ export const useScrollLock = (
 }
 
 /**
- * shorthand for pins, which selects "fixed" if scroller is off and "transform"
- * if scroller is on
+ * shorthand for pins — always "fixed" since smooth scrolling is disabled
  */
-export const usePinType = () => {
-	const isSmooth = useIsSmooth()
-	return isSmooth ? "transform" : "fixed"
-}
+export const usePinType = () => "fixed" as const
 
 /**
- * returns true if scroll smoothing is enabled
+ * returns true if the user is on a pointer/mouse device (hover capable)
  */
 export const useIsSmooth = () => {
-	const [smooth, setSmooth] = useState(
+	const [isMouse, setIsMouse] = useState(
 		// biome-ignore lint/complexity/useOptionalChain: window cannot be chained
 		typeof window !== "undefined" &&
 			window.matchMedia("(hover: hover)").matches,
 	)
 
 	useEffect(() => {
-		const enableSmooth = () => {
-			setSmooth(true)
-		}
-		const disableSmooth = () => {
-			setSmooth(!!window.lenis?.options.syncTouch)
-		}
+		const enableMouse = () => setIsMouse(true)
+		const disableMouse = () => setIsMouse(false)
 
-		window.addEventListener("wheel", enableSmooth, { passive: true })
-		window.addEventListener("touchstart", disableSmooth, { passive: true })
+		window.addEventListener("wheel", enableMouse, { passive: true })
+		window.addEventListener("touchstart", disableMouse, { passive: true })
 
 		return () => {
-			window.removeEventListener("wheel", enableSmooth)
-			window.removeEventListener("touchstart", disableSmooth)
+			window.removeEventListener("wheel", enableMouse)
+			window.removeEventListener("touchstart", disableMouse)
 		}
 	}, [])
 
-	// if the device is mobile, set the initial value to false
 	useEffect(() => {
 		const hover = window.matchMedia("(hover: hover)")
-		if (!hover.matches) {
-			setSmooth(false)
-		}
+		if (!hover.matches) setIsMouse(false)
 	}, [])
 
-	// check for url flags
-	if (isBrowser && window.location.search.toLowerCase().includes("nosmooth"))
-		return false
-	if (isBrowser && window.location.search.toLowerCase().includes("forcesmooth"))
-		return true
-
-	return smooth
+	return isMouse
 }
 
-declare global {
-	interface Window {
-		lenis?: Lenis
-	}
-}
-
-ScrollTrigger.config({
-	ignoreMobileResize: true,
-})
-
-export const SmoothScrollStyle = ({
-	infinite,
-	...config
-}: LenisOptions & { infinite?: boolean } = {}) => {
-	useDeepCompareLayoutEffect(() => {
-		/**
-		 * create the smoother
-		 */
-		window.lenis?.destroy()
-
-		// allow scrolling in error modals, chrome extensions, sanity studio, etc.
-		// i'd like to clean this up a bit, but ok for now
-		const rootLayout = document.querySelector(".root-layout")
-		if (!rootLayout) throw new Error("root-layout not found")
-
-		// Initialize a new Lenis instance for smooth scrolling
-		const lenis = new Lenis({
-			...config,
-			eventsTarget: rootLayout,
-			infinite: infinite || false,
-		})
-		window.lenis = lenis
-
-		// Synchronize Lenis scrolling with GSAP's ScrollTrigger plugin
-		lenis.on("scroll", ScrollTrigger.update)
-
-		// Add Lenis's requestAnimationFrame (raf) method to GSAP's ticker
-		// This ensures Lenis's smooth scroll animation updates on each GSAP tick
-		gsap.ticker.add((time) => {
-			lenis.raf(time * 1000) // Convert time from seconds to milliseconds
-		})
-
-		// Disable lag smoothing in GSAP to prevent any delay in scroll animations
-		gsap.ticker.lagSmoothing(0)
-
-		// refresh on resize
-		let needsRefresh = false
-		let isMounted = true
-		const onResize = () => {
-			needsRefresh = true
-		}
-		const check = () => {
-			if (!isMounted) return
-			if (needsRefresh && lenis.velocity === 0) {
-				needsRefresh = false
-				ScrollTrigger.refresh()
-			}
-			requestAnimationFrame(check)
-		}
-		requestAnimationFrame(check)
-
-		/**
-		 * pull state from the scroll locks
-		 */
+export const SmoothScrollStyle = () => {
+	useEffect(() => {
 		const onChange = () => {
 			const unlockers = locks.find(
 				(lock) => lock.description === "scroll-unlock",
 			)
 			const lockers = locks.find((lock) => lock.description === "scroll-lock")
 
-			if (unlockers) lenis.start()
-			else if (lockers) lenis.stop()
-			else lenis.start()
+			if (unlockers || !lockers) {
+				document.body.style.overflow = ""
+			} else {
+				document.body.style.overflow = "hidden"
+			}
 		}
 
 		onChange()
-
 		locksChange.addEventListener("change", onChange)
-		window.addEventListener("resize", onResize)
-		return () => {
-			isMounted = false
-			locksChange.removeEventListener("change", onChange)
-			window.removeEventListener("resize", onResize)
-		}
-	}, [config])
+		return () => locksChange.removeEventListener("change", onChange)
+	}, [])
 
 	return null
 }
